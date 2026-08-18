@@ -1,0 +1,54 @@
+name: Deploy CloudDrop to Elastic Beanstalk
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: ap-south-1
+  APPLICATION_NAME: clouddrop-app
+  ENVIRONMENT_NAME: Clouddrop-app-env
+
+jobs:
+  validate-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Validate Node.js application
+        run: |
+          npm install --ignore-scripts
+          node --check server.js
+
+      - name: Configure AWS credentials with OIDC
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy to Elastic Beanstalk
+        uses: aws-actions/aws-elasticbeanstalk-deploy@v1
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          application-name: ${{ env.APPLICATION_NAME }}
+          environment-name: ${{ env.ENVIRONMENT_NAME }}
+          version-label: github-${{ github.run_number }}-${{ github.sha }}
+          create-application-if-not-exists: false
+          create-environment-if-not-exists: false
+          wait-for-deployment: true
+          wait-for-environment-recovery: true
+          deployment-timeout: 1200
+          exclude-patterns: node_modules/**,.git/**,.github/**,*.zip
